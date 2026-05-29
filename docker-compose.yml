@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: cronhub_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       cronhub
+      POSTGRES_USER:     cronhub
+      POSTGRES_PASSWORD: cronhub_secret
+    ports:
+      - "5435:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cronhub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cronhub_backend
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    environment:
+      NODE_ENV:     production
+      PORT:         3004
+      DATABASE_URL: postgresql://cronhub:cronhub_secret@db:5432/cronhub
+      JWT_SECRET:   change_this_to_a_long_random_secret_before_deploying
+      FRONTEND_URL: http://localhost:5176
+      APP_URL:      http://localhost:5176
+      SMTP_HOST:    ""
+      SMTP_PORT:    "587"
+      SMTP_SECURE:  "false"
+      SMTP_USER:    ""
+      SMTP_PASS:    ""
+      SMTP_FROM:    ""
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+    driver: local
