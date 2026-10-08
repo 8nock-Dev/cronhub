@@ -10,6 +10,9 @@ const STATUS_STYLE = {
   failed:  'text-red-700 bg-red-50 border-red-200',
   timeout: 'text-amber-700 bg-amber-50 border-amber-200',
   running: 'text-blue-700 bg-blue-50 border-blue-200',
+  retrying: 'text-violet-700 bg-violet-50 border-violet-200',
+  retry_pending: 'text-violet-700 bg-violet-50 border-violet-200',
+  cancelled: 'text-slate-600 bg-slate-100 border-slate-300',
   pending: 'text-slate-500 bg-slate-50 border-slate-200',
 };
 
@@ -22,6 +25,8 @@ export default function JobDetail() {
   const [loading,    setLoading]    = useState(true);
   const [editing,    setEditing]    = useState(false);
   const [triggering, setTriggering] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [selectedExecution, setSelectedExecution] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -60,6 +65,18 @@ export default function JobDetail() {
     } finally { setTimeout(() => setTriggering(false), 2500); }
   }
 
+  async function handleCancel() {
+    setCancelling(true);
+    try {
+      await api.post(`/jobs/${id}/cancel`);
+      setTimeout(load, 1200);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Cancellation failed');
+    } finally {
+      setTimeout(() => setCancelling(false), 1200);
+    }
+  }
+
   if (loading) return <Shell><LoadingState /></Shell>;
   if (!job) return null;
 
@@ -68,6 +85,7 @@ export default function JobDetail() {
   const successCount = executions.filter(e => e.status === 'success').length;
   const successRate  = executions.length > 0
     ? Math.round((successCount / executions.length) * 100) : null;
+  const isRunning = triggering || (job.lease_until && new Date(job.lease_until) > new Date());
 
   return (
     <Shell>
@@ -108,6 +126,12 @@ export default function JobDetail() {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
+            {isRunning && (
+              <button onClick={handleCancel} disabled={cancelling}
+                className="px-3.5 py-2 text-sm font-medium text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-50 disabled:opacity-50 transition-colors">
+                {cancelling ? 'Cancelling…' : 'Cancel run'}
+              </button>
+            )}
             <button onClick={handleTrigger} disabled={triggering}
               className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-cyan-700 border border-cyan-200 rounded-lg hover:bg-cyan-50 disabled:opacity-50 transition-colors">
               {triggering ? (
@@ -166,7 +190,8 @@ export default function JobDetail() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {recent10.map(exec => (
-                  <tr key={exec.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={exec.id} onClick={() => setSelectedExecution(selectedExecution?.id === exec.id ? null : exec)}
+                    className="hover:bg-slate-50/50 transition-colors cursor-pointer" title="View run details">
                     <td className="py-3 pr-4">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${STATUS_STYLE[exec.status] || STATUS_STYLE.pending}`}>
                         {exec.status}
@@ -192,6 +217,20 @@ export default function JobDetail() {
                 ))}
               </tbody>
             </table>
+            {selectedExecution && (
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between gap-4 mb-2">
+                  <h3 className="text-sm font-medium text-slate-700">Run details</h3>
+                  <button onClick={() => setSelectedExecution(null)} className="text-xs text-slate-400 hover:text-slate-700">Close</button>
+                </div>
+                <p className="text-xs text-slate-500 mb-2">
+                  Response body is truncated and common secret fields are redacted before storage.
+                </p>
+                <pre className="text-xs text-slate-700 whitespace-pre-wrap break-words max-h-64 overflow-auto">
+                  {selectedExecution.response_body || selectedExecution.error_message || 'No response body recorded.'}
+                </pre>
+              </div>
+            )}
           </div>
         )}
       </div>

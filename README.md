@@ -17,6 +17,7 @@ CronHub is an open-source alternative to EasyCron, Cron-job.org, and Cronitor. P
 - **Manual trigger** — run any job instantly from the dashboard
 - **Failure alerting** — email + webhook alerts after N consecutive failures
 - **Pause/resume** — disable individual jobs without deleting them
+- **Secure password recovery** — hashed, one-time reset tokens delivered over SMTP
 - **Self-hostable** — Docker Compose, Railway, Render, or Fly.io
 
 ---
@@ -144,6 +145,8 @@ Job fires → HTTP request
 |--------|----------------------|------------------|
 | POST   | `/api/auth/register` | Create account   |
 | POST   | `/api/auth/login`    | Get JWT token    |
+| POST   | `/api/auth/forgot-password` | Request reset link |
+| POST   | `/api/auth/reset-password` | Consume reset token |
 | GET    | `/api/auth/me`       | Current user     |
 
 ### Jobs

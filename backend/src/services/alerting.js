@@ -1,5 +1,5 @@
-const axios = require('axios');
 const { sendEmail } = require('../config/mailer');
+const { safeRequest } = require('../security/safeHttp');
 
 const APP_URL = () => process.env.APP_URL || 'http://localhost:5176';
 
@@ -39,13 +39,27 @@ async function sendAlert(job, consecutiveFailures, lastError) {
   }
 
   if (job.notify_webhook) {
-    await axios.post(job.notify_webhook, {
-      job_name: job.name, url: job.url, schedule: job.schedule,
-      consecutive_failures: consecutiveFailures, last_error: lastError,
-      timestamp: new Date().toISOString(),
-      text: `🔴 CronHub: "${job.name}" has failed ${consecutiveFailures} times in a row`,
-    }, { timeout: 8000 }).catch(e => console.error('[Alert/webhook]', e.message));
+    await safeRequest({ method: 'POST', url: job.notify_webhook, timeout: 8000,
+      headers: { 'Content-Type': 'application/json' }, data: {
+        job_name: job.name, url: job.url, schedule: job.schedule,
+        consecutive_failures: consecutiveFailures, last_error: lastError,
+        timestamp: new Date().toISOString(),
+        text: `🔴 CronHub: "${job.name}" has failed ${consecutiveFailures} times in a row`,
+      } }, { maxRedirects: 1, maxContentLength: 256 * 1024 })
+      .catch(e => console.error('[Alert/webhook]', e.message));
   }
 }
 
-module.exports = { sendAlert };
+async function sendRecoveryAlert(job) {
+  const subject = `✅ [CronHub] "${job.name}" has recovered`;
+  const html = `<p>The job <strong>${job.name}</strong> is succeeding again.</p>`;
+  if (job.notify_email) await sendEmail({ to: job.notify_email, subject, html });
+  if (job.notify_webhook) {
+    await safeRequest({ method: 'POST', url: job.notify_webhook, timeout: 8000,
+      headers: { 'Content-Type': 'application/json' },
+      data: { job_name: job.name, status: 'recovered', timestamp: new Date().toISOString(), text: `✅ CronHub: "${job.name}" has recovered` },
+    }, { maxRedirects: 1, maxContentLength: 256 * 1024 }).catch(e => console.error('[Alert/webhook]', e.message));
+  }
+}
+
+module.exports = { sendAlert, sendRecoveryAlert };

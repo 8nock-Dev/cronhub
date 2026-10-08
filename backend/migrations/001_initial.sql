@@ -12,6 +12,16 @@ CREATE TABLE IF NOT EXISTS users (
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  user_id       UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  token_hash    TEXT UNIQUE NOT NULL,
+  expires_at    TIMESTAMPTZ NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expiry
+  ON password_reset_tokens(expires_at);
+
 -- ─────────────────────────────────────────────────────────
 -- JOBS
 -- ─────────────────────────────────────────────────────────
@@ -32,6 +42,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   schedule              VARCHAR(100) NOT NULL,   -- standard cron expression (5 fields)
   timezone              VARCHAR(60)  DEFAULT 'UTC',
   next_run_at           TIMESTAMPTZ,
+  lease_until           TIMESTAMPTZ,
+  cancel_requested      BOOLEAN NOT NULL DEFAULT false,
 
   -- Execution config
   timeout_seconds       INTEGER DEFAULT 30,
@@ -70,7 +82,8 @@ CREATE TABLE IF NOT EXISTS executions (
   triggered_by   VARCHAR(20) DEFAULT 'scheduled',  -- scheduled|manual|retry
 
   started_at     TIMESTAMPTZ DEFAULT NOW(),
-  completed_at   TIMESTAMPTZ
+  completed_at   TIMESTAMPTZ,
+  scheduled_for  TIMESTAMPTZ
 );
 
 -- ─────────────────────────────────────────────────────────
@@ -81,3 +94,8 @@ CREATE INDEX IF NOT EXISTS idx_jobs_active           ON jobs(is_active, next_run
 CREATE INDEX IF NOT EXISTS idx_executions_job_id     ON executions(job_id);
 CREATE INDEX IF NOT EXISTS idx_executions_started_at ON executions(started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_executions_job_time   ON executions(job_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_executions_retry_due  ON executions(scheduled_for) WHERE status = 'retry_pending';
+
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS lease_until TIMESTAMPTZ;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS cancel_requested BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE executions ADD COLUMN IF NOT EXISTS scheduled_for TIMESTAMPTZ;

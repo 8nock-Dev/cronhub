@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 
@@ -70,6 +71,7 @@ export default function Login() {
             {mode === 'register' && <input name="name" value={form.name} onChange={set} placeholder="Your name" required className={inp()} />}
             <input type="email" name="email" value={form.email} onChange={set} placeholder="Email" required className={inp()} />
             <input type="password" name="password" value={form.password} onChange={set} placeholder="Password" required minLength={mode === 'register' ? 8 : 1} className={inp()} />
+            {mode === 'login' && <div className="text-right"><Link to="/forgot-password" className="text-xs text-slate-600 hover:underline">Forgot password?</Link></div>}
             <button type="submit" disabled={busy} className="w-full py-2.5 bg-slate-900 text-white font-medium text-sm rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors">
               {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
             </button>

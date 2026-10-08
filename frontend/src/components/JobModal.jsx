@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api/client';
 
-const METHODS  = ['GET','POST','PUT','PATCH','DELETE','HEAD'];
+const METHODS  = ['GET','POST','PUT','PATCH','DELETE'];
 const PRESETS  = [
   { label: 'Every minute',       value: '* * * * *'    },
   { label: 'Every 5 minutes',    value: '*/5 * * * *'  },
@@ -19,6 +19,7 @@ const DEFAULTS = {
   retry_count: 2, retry_delay_seconds: 60,
   notify_email: '', notify_webhook: '', alert_after_failures: 3,
   is_active: true,
+  headersText: '{}',
 };
 
 export default function JobModal({ job, onSave, onClose }) {
@@ -45,6 +46,7 @@ export default function JobModal({ job, onSave, onClose }) {
       notify_webhook:      job.notify_webhook || '',
       alert_after_failures:job.alert_after_failures || 3,
       is_active:           job.is_active ?? true,
+      headersText:         JSON.stringify(job.headers || {}, null, 2),
     });
   }, [job]);
 
@@ -73,6 +75,9 @@ export default function JobModal({ job, onSave, onClose }) {
     if (!f.schedule)    { setErr('Schedule is required'); return; }
     setL(true);
     try {
+      let headers;
+      try { headers = JSON.parse(f.headersText || '{}'); }
+      catch { setErr('Request headers must be valid JSON'); setL(false); return; }
       await onSave({
         ...f,
         timeout_seconds:     Number(f.timeout_seconds),
@@ -82,6 +87,7 @@ export default function JobModal({ job, onSave, onClose }) {
         notify_email:  f.notify_email  || null,
         notify_webhook:f.notify_webhook|| null,
         body: f.body || null,
+        headers,
       });
     } catch (err) {
       setErr(err.response?.data?.error || 'Save failed');
@@ -148,7 +154,7 @@ export default function JobModal({ job, onSave, onClose }) {
                 <div className="grid grid-cols-2 gap-4">
                   <F label="Timeout (seconds)">
                     <input type="number" value={f.timeout_seconds} onChange={e => set('timeout_seconds', e.target.value)}
-                      min={1} max={300} className={inp()} />
+                      min={1} max={60} className={inp()} />
                   </F>
                   <F label="Retries on failure">
                     <input type="number" value={f.retry_count} onChange={e => set('retry_count', e.target.value)}
@@ -174,9 +180,13 @@ export default function JobModal({ job, onSave, onClose }) {
                   <textarea value={f.body} onChange={e => set('body', e.target.value)}
                     rows={4} placeholder='{"key": "value"}' className={`${inp()} font-mono resize-none`} />
                 </F>
+                <F label="Request headers" hint="Stored encrypted; existing values are masked when editing">
+                  <textarea value={f.headersText} onChange={e => set('headersText', e.target.value)}
+                    rows={4} placeholder='{"Authorization": "Bearer ..."}' className={`${inp()} font-mono resize-none`} />
+                </F>
                 <F label="Retry base delay (seconds)" hint="Doubles on each retry attempt">
                   <input type="number" value={f.retry_delay_seconds} onChange={e => set('retry_delay_seconds', e.target.value)}
-                    min={1} className={inp()} />
+                    min={5} max={3600} className={inp()} />
                 </F>
               </>
             )}
